@@ -1,0 +1,80 @@
+version: '3.9'
+name: 'gh-keyword-crawler'
+
+services:
+
+  gh-keyword-crawler-db:
+    container_name: gh-keyword-crawler-db
+    hostname: gh-keyword-crawler-db
+    image: mongo:6.0.5
+    volumes:
+      - data:/data/db
+      - ./initdb.d/:/docker-entrypoint-initdb.d/
+    environment:
+      TZ: UTC
+    restart: always
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      start_period: 30s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  gh-keyword-crawler-commits:
+    container_name: gh-keyword-crawler-commits
+    image: gh-keyword-crawler:latest
+    build:
+      context: ../
+      dockerfile: deployment/crawler/Dockerfile
+    volumes:
+      - ./logs/commits:/tmp/gh-keyword-crawler
+    environment:
+      TZ: UTC
+      DATABASE_HOST: gh-keyword-crawler-db
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+    command: --target commits chatgpt
+    depends_on:
+      gh-keyword-crawler-db:
+        condition: service_healthy
+
+  gh-keyword-crawler-issues:
+    container_name: gh-keyword-crawler-issues
+    image: gh-keyword-crawler:latest
+    build:
+      context: ../
+      dockerfile: deployment/crawler/Dockerfile
+    volumes:
+      - ./logs/issues:/tmp/gh-keyword-crawler
+    environment:
+      TZ: UTC
+      DATABASE_HOST: gh-keyword-crawler-db
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+    command: --target issues chatgpt
+    depends_on:
+      gh-keyword-crawler-db:
+        condition: service_healthy
+
+  gh-keyword-crawler-pull-requests:
+    container_name: gh-keyword-crawler-pull-requests
+    image: gh-keyword-crawler:latest
+    build:
+      context: ../
+      dockerfile: deployment/crawler/Dockerfile
+    volumes:
+      - ./logs/pull-requests:/tmp/gh-keyword-crawler
+    environment:
+      TZ: UTC
+      DATABASE_HOST: gh-keyword-crawler-db
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+    command: --target pull-requests chatgpt
+    depends_on:
+      gh-keyword-crawler-db:
+        condition: service_healthy
+
+volumes:
+  data:
+    name: gh-keyword-crawler-data
+
+networks:
+  default:
+    name: gh-keyword-crawler-network
